@@ -41,18 +41,21 @@ def get_transcript(video_path):
     if not transcription:
         return "Error: Could not transcribe audio."
 
-    transcript_text = ""
+    transcript_data = []
     for segment in transcription["segments"]:
         start = format_time(segment['start'])
         end = format_time(segment["end"])
         text = segment["text"]
-        transcript_text += f"[{start} - {end}] {text}\n"
 
-    # Optionally, save the transcript to a file:
-    save_transcript(transcript_text)
+        # ✅ Store as JSON-friendly format
+        transcript_data.append({
+            "start_time": start,
+            "end_time": end,
+            "text": text
+        })
 
     print('THE TRANSCRIPT WORKED!')
-    return transcript_text
+    return transcript_data  # ✅ Returns structured JSON
 
 
 def save_transcript(transcript_text, output_file="transcript.txt"):

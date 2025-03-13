@@ -1,12 +1,11 @@
+import requests
+import os
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework.parsers import MultiPartParser
-import os
 from api.speech_to_text import get_transcript
 
 
 class UploadVideoView(APIView):
-    parser_classes = [MultiPartParser]  # Allows file uploads
 
     def post(self, request, *args, **kwargs):
         video = request.FILES.get("video")
@@ -14,22 +13,47 @@ class UploadVideoView(APIView):
         if not video:
             return Response({"error": "No video uploaded"}, status=400)
 
-        # Save the video temporarily
         video_path = f"media/{video.name}"
-        os.makedirs("media", exist_ok=True)  # Ensure media directory exists
-        with open(video_path, "wb+") as f:
+        with open(video_path, "wb") as f:
             for chunk in video.chunks():
                 f.write(chunk)
 
-        # Get transcript using your speech_to_text function
         transcript = get_transcript(video_path)
 
-        # Clean up temporary file
         if os.path.exists(video_path):
             os.remove(video_path)
 
-        # Check if transcription failed
-        if transcript.startswith("Error:"):
+        if isinstance(transcript, str) and transcript.startswith("Error:"):
             return Response({"error": transcript}, status=500)
 
-        return Response({"transcript": transcript}, status=200)  # ✅ Fixed typo
+        # ✅ Correct FastAPI request structure
+        fastapi_url = "http://localhost:8001/api/chat/structured"
+        payload = {
+            "request": {  # ✅ Wrap inside "request" key
+                "message": transcript,
+                "conversation_id": None
+            }
+        }
+
+        headers = {"Content-Type": "application/json"}
+
+        try:
+            print("🔥 Sending request to FastAPI endpoint:", fastapi_url)
+            fastapi_response = requests.post(
+                fastapi_url, json=payload, headers=headers)
+
+            print("🚀 FastAPI status code:", fastapi_response.status_code)
+            print("📦 FastAPI response:", fastapi_response.text)
+
+            fastapi_response.raise_for_status()  # ✅ Catch HTTP errors clearly
+
+            feedback_data = fastapi_response.json()
+
+        except requests.RequestException as e:
+            print("❌ Exception occurred:", e)
+            return Response({"error": f"FastAPI connection error: {str(e)}"}, status=500)
+
+        return Response({
+            "transcript": transcript,
+            "structured_feedback": feedback_data["response"]
+        }, status=200)
