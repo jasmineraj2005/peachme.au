@@ -1,8 +1,0 @@
-version: '3.8'
-services:
-  transcriber:
-    build: .
-    volumes:
-      - .:/app
-    stdin_open: true
-    tty: true
