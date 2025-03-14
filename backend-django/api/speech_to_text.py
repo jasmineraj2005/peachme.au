@@ -33,6 +33,7 @@ def format_time(seconds):
 
 
 def get_transcript(video_path):
+    """Extracts and transcribes audio from a video, returning a formatted transcript as a string."""
     audio_file = extract_audio(video_path)
     if not audio_file:
         return "Error: Could not extract audio."
@@ -41,21 +42,23 @@ def get_transcript(video_path):
     if not transcription:
         return "Error: Could not transcribe audio."
 
-    transcript_data = []
+    transcript_lines = []
     for segment in transcription["segments"]:
         start = format_time(segment['start'])
         end = format_time(segment["end"])
         text = segment["text"]
 
-        # ✅ Store as JSON-friendly format
-        transcript_data.append({
-            "start_time": start,
-            "end_time": end,
-            "text": text
-        })
+        # ✅ Append each transcript line as a formatted string
+        transcript_lines.append(f"[{start} - {end}] {text}")
+
+    # ✅ Remove the first line (if it exists)
+    if transcript_lines:
+        transcript_lines.pop(0)
+
+    transcript_text = "\n".join(transcript_lines)
 
     print('THE TRANSCRIPT WORKED!')
-    return transcript_data  # ✅ Returns structured JSON
+    return transcript_text  # ✅ Returns a clean string instead of a list
 
 
 def save_transcript(transcript_text, output_file="transcript.txt"):

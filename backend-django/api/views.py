@@ -29,10 +29,9 @@ class UploadVideoView(APIView):
         # ✅ Correct FastAPI request structure
         fastapi_url = "http://localhost:8001/api/chat/structured"
         payload = {
-            "request": {  # ✅ Wrap inside "request" key
-                "message": transcript,
-                "conversation_id": None
-            }
+            "message": transcript,
+            "conversation_id": None
+
         }
 
         headers = {"Content-Type": "application/json"}
@@ -45,7 +44,7 @@ class UploadVideoView(APIView):
             print("🚀 FastAPI status code:", fastapi_response.status_code)
             print("📦 FastAPI response:", fastapi_response.text)
 
-            fastapi_response.raise_for_status()  # ✅ Catch HTTP errors clearly
+            fastapi_response.raise_for_status()
 
             feedback_data = fastapi_response.json()
 
