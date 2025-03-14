@@ -1,6 +1,10 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes import chat_router
+from dotenv import load_dotenv
+
+
+load_dotenv()
 
 app = FastAPI(
     title="PeachMe API",
@@ -20,6 +24,7 @@ app.add_middleware(
 # Include routers
 app.include_router(chat_router, prefix="/api")
 
+
 @app.get("/")
 async def root():
     """Root endpoint that returns API information"""
@@ -29,4 +34,4 @@ async def root():
             "chat": "/api/chat",
             "conversations": "/api/conversations",
         }
-    } 
+    }
