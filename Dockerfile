@@ -16,7 +16,10 @@ RUN pip install --no-cache-dir -r requirements.txt \
     && rm -rf /root/.cache/pip/*
 
 # Copy the application code
-COPY . .
+COPY main.py .
+COPY app ./app
+COPY media ./media
+COPY peachme.db ./peachme.db
 
 # Create necessary directories
 RUN mkdir -p media
@@ -25,4 +28,4 @@ RUN mkdir -p media
 EXPOSE 8001
 
 # Run the application with uvicorn
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8001", "--reload"] 
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8001", "--reload"] 
