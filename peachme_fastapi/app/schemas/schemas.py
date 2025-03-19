@@ -74,3 +74,14 @@ class ConversationMessagesResponse(BaseModel):
     messages: List[Message] = Field(...,
                                     description="List of messages in the conversation")
     conversation_id: str = Field(..., description="The conversation ID")
+
+# Video transcription response schemas
+class TranscriptionResponse(BaseModel):
+    """Schema for video transcription response"""
+    transcript: str = Field(..., description="The transcribed text from the video")
+    conversation_id: Optional[str] = Field(None, description="The conversation ID if saved to a conversation")
+
+class FeedbackResponse(BaseModel):
+    """Schema for feedback response"""
+    feedback: str = Field(..., description="Structured feedback based on the transcript")
+    conversation_id: str = Field(..., description="The conversation ID where the feedback is stored")

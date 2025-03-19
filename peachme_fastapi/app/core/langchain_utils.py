@@ -13,7 +13,6 @@ from dotenv import load_dotenv
 import uuid
 import logging
 from pydantic import BaseModel, Field
-from langchain_core.pydantic_v1 import BaseModel as LangchainBaseModel
 from langchain_core.output_parsers import PydanticOutputParser
 
 # Set up logging
