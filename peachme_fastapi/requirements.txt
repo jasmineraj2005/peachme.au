@@ -1,9 +1,0 @@
-fastapi==0.115.11
-uvicorn==0.34.0
-python-dotenv==1.0.1
-langchain==0.3.20
-langchain-openai==0.3.8
-pydantic==2.10.6
-sqlalchemy==2.0.39
-openai==1.66.3
-tiktoken==0.9.0

@@ -13,7 +13,6 @@ from dotenv import load_dotenv
 import uuid
 import logging
 from pydantic import BaseModel, Field
-from langchain_core.pydantic_v1 import BaseModel as LangchainBaseModel
 from langchain_core.output_parsers import PydanticOutputParser
 
 # Set up logging
@@ -30,11 +29,11 @@ LANGCHAIN_PROJECT = os.getenv("LANGCHAIN_PROJECT", "peachme-chat")
 LANGCHAIN_TRACING_V2 = os.getenv("LANGCHAIN_TRACING_V2", "true").lower() == "true"
 
 # Define Pydantic models for structured output
-class CriteriaFeedback(LangchainBaseModel):
+class CriteriaFeedback(BaseModel):
     score: int = Field(..., description="Rating score from 1-5")
     feedback: str = Field(..., description="Detailed feedback for this criteria")
 
-class PitchEvaluation(LangchainBaseModel):
+class PitchEvaluation(BaseModel):
     stated_problem: CriteriaFeedback = Field(..., description="Evaluation of how well the problem is stated")
     identified_solution: CriteriaFeedback = Field(..., description="Evaluation of the proposed solution")
     target_market: CriteriaFeedback = Field(..., description="Evaluation of the target market analysis")
@@ -84,9 +83,10 @@ def get_llm(temperature: float = 0.7, model_name: str = "gpt-3.5-turbo", run_id:
     if LANGCHAIN_API_KEY:
         try:
             tracer = LangChainTracer(
-                project_name=LANGCHAIN_PROJECT,
-                run_id=run_id
+                project_name=LANGCHAIN_PROJECT
             )
+            if run_id:
+                tracer.run_id = run_id
             callbacks.append(tracer)
         except Exception as e:
             logger.error(f"Error initializing LangChain tracer: {str(e)}")

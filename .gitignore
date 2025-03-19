@@ -4,3 +4,6 @@ __pycache__/
 venv
 peachme.db
 transcript_payload.txt
+.DS_Store
+nia_video
+transcript_payload.txt
