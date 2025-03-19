@@ -22,8 +22,9 @@ class Message(MessageBase):
     conversation_id: str
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = {
+        "from_attributes": True
+    }
 
 # Conversation schemas
 
@@ -46,15 +47,16 @@ class Conversation(ConversationBase):
     updated_at: datetime
     messages: List[Message] = []
 
-    class Config:
-        from_attributes = True
+    model_config = {
+        "from_attributes": True
+    }
 
 # Chat request schema
 
 
 class ChatRequest(BaseModel):
     """Schema for chat request"""
-    message: str = Field(..., description="The user's message")
+    message: str = Field(description="The user's message")
     conversation_id: Optional[str] = Field(
         None, description="The conversation ID (if continuing a conversation)")
 
@@ -63,25 +65,24 @@ class ChatRequest(BaseModel):
 
 class ChatResponse(BaseModel):
     """Schema for chat response"""
-    response: str = Field(..., description="The assistant's response")
-    conversation_id: str = Field(..., description="The conversation ID")
+    response: str = Field(description="The assistant's response")
+    conversation_id: str = Field(description="The conversation ID")
 
 # Conversation messages response schema
 
 
 class ConversationMessagesResponse(BaseModel):
     """Schema for conversation messages response"""
-    messages: List[Message] = Field(...,
-                                    description="List of messages in the conversation")
-    conversation_id: str = Field(..., description="The conversation ID")
+    messages: List[Message] = Field(description="List of messages in the conversation")
+    conversation_id: str = Field(description="The conversation ID")
 
 # Video transcription response schemas
 class TranscriptionResponse(BaseModel):
     """Schema for video transcription response"""
-    transcript: str = Field(..., description="The transcribed text from the video")
+    transcript: str = Field(description="The transcribed text from the video")
     conversation_id: Optional[str] = Field(None, description="The conversation ID if saved to a conversation")
 
 class FeedbackResponse(BaseModel):
     """Schema for feedback response"""
-    feedback: str = Field(..., description="Structured feedback based on the transcript")
-    conversation_id: str = Field(..., description="The conversation ID where the feedback is stored")
+    feedback: str = Field(description="Structured feedback based on the transcript")
+    conversation_id: str = Field(description="The conversation ID where the feedback is stored")

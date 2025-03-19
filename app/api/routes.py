@@ -18,7 +18,7 @@ from app.schemas.schemas import (
     FeedbackResponse
 )
 from app.services.chat_service import ChatService
-from app.core.langchain_utils import process_chat_message
+from app.core.chat_processor import process_chat_message
 from app.services.speech_to_text import get_transcript
 
 # Set up logging
