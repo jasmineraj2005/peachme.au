@@ -26,7 +26,7 @@ async def transcribe_video(
     video: UploadFile = File(...),
 ):
     """
-    Upload a video file and get its transcript.
+    Upload a video file and get its transcript using OpenAI's Whisper API.
     """
     try:
         # Create media directory if it doesn't exist
@@ -39,7 +39,7 @@ async def transcribe_video(
             content = await video.read()
             f.write(content)
 
-        # Get transcript
+        # Get transcript from OpenAI API
         transcript = get_transcript(str(video_path))
         
         if isinstance(transcript, str) and transcript.startswith("Error:"):
