@@ -1,6 +1,6 @@
 from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, Field
-from agents import Agent, Runner, trace, guardrails
+from agents import Agent, Runner, trace
 from dataclasses import dataclass
 import os
 from dotenv import load_dotenv
@@ -26,38 +26,15 @@ class PitchContext:
 
 class PitchEvaluation(BaseModel):
     """Structured output for pitch evaluation"""
-    clarity: int = Field(description="Rating from 1-5 for clarity of presentation", ge=1, le=5)
-    content: int = Field(description="Rating from 1-5 for content quality", ge=1, le=5)
-    structure: int = Field(description="Rating from 1-5 for pitch structure", ge=1, le=5)
-    delivery: int = Field(description="Rating from 1-5 for delivery style", ge=1, le=5)
-    feedback: str = Field(description="Detailed feedback and suggestions", min_length=50)
-
-    class Config:
-        json_schema_extra = {
-            "examples": [
-                {
-                    "clarity": 4,
-                    "content": 3,
-                    "structure": 4,
-                    "delivery": 3,
-                    "feedback": "Your pitch demonstrates good clarity and structure. The main points are well-organized and easy to follow. However, the content could be more compelling with specific examples and data points. The delivery could be improved by varying your pace and adding more emphasis on key points."
-                }
-            ]
-        }
-
-# Define guardrails for pitch analysis
-@guardrails.validate_output
-def validate_pitch_evaluation(eval: PitchEvaluation) -> bool:
-    """Validate pitch evaluation output"""
-    # Ensure all ratings are between 1 and 5
-    ratings_valid = all(1 <= rating <= 5 for rating in [
-        eval.clarity, eval.content, eval.structure, eval.delivery
-    ])
-    
-    # Ensure feedback is substantial
-    feedback_valid = len(eval.feedback.split()) >= 20
-    
-    return ratings_valid and feedback_valid
+    clarity: int = Field(description="Rating from 1-5 for clarity of presentation")
+    clarity_feedback: str = Field(description="Detailed feedback about clarity")
+    content: int = Field(description="Rating from 1-5 for content quality")
+    content_feedback: str = Field(description="Detailed feedback about content")
+    structure: int = Field(description="Rating from 1-5 for pitch structure")
+    structure_feedback: str = Field(description="Detailed feedback about structure")
+    delivery: int = Field(description="Rating from 1-5 for delivery style")
+    delivery_feedback: str = Field(description="Detailed feedback about delivery")
+    feedback: str = Field(description="Overall feedback and suggestions")
 
 # Create agents for different purposes
 pitch_analysis_agent = Agent[PitchContext](
@@ -66,15 +43,24 @@ pitch_analysis_agent = Agent[PitchContext](
     Focus on clarity, content quality, structure, and delivery style.
     Be specific in your feedback and provide actionable suggestions for improvement.
     
-    For each criterion:
-    - Clarity (1-5): How clear and understandable is the pitch?
-    - Content (1-5): How compelling and valuable is the content?
-    - Structure (1-5): How well-organized is the presentation?
-    - Delivery (1-5): How effective is the delivery style?
+    For each criterion, provide a rating and detailed feedback:
     
-    Provide detailed feedback with specific examples and suggestions.""",
+    - Clarity (1-5): How clear and understandable is the pitch?
+      - Provide specific feedback about clarity, focusing on language choices, explanation quality, and how well ideas are communicated.
+    
+    - Content (1-5): How compelling and valuable is the content?
+      - Provide specific feedback about content value, focusing on uniqueness, evidence/data included, value proposition, and market relevance.
+    
+    - Structure (1-5): How well-organized is the presentation?
+      - Provide specific feedback about structure, focusing on logical flow, organization, transitions between topics, and overall narrative arc.
+    
+    - Delivery (1-5): How effective is the delivery style?
+      - Provide specific feedback about delivery, focusing on pacing, emphasis, confidence, engagement, and overall presentation style.
+    
+    Also provide overall feedback summarizing key strengths and areas for improvement across all categories.
+    
+    Make your feedback constructive, specific, and actionable with clear examples from the pitch.""",
     output_type=PitchEvaluation,
-    guardrails=[validate_pitch_evaluation],
 )
 
 chat_agent = Agent[PitchContext](
@@ -135,9 +121,7 @@ async def analyze_pitch(
         # Run the analysis with context and tracing
         result = await Runner.run(
             pitch_analysis_agent,
-            pitch_content,
-            context=context,
-            trace=current_trace
+            pitch_content
         )
         
         return result.final_output
@@ -165,9 +149,7 @@ async def chat_response(
         # Generate response with context and tracing
         result = await Runner.run(
             chat_agent,
-            user_input,
-            context=context,
-            trace=current_trace
+            user_input
         )
         
         return result.final_output 

@@ -1,30 +1,34 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.api.routes import chat_router, video_router
+import os
 from dotenv import load_dotenv
 
+from app.api.routes import video_router
 
+# Load environment variables
 load_dotenv()
 
+# Get CORS origins from environment variable
+CORS_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
+
+# Create FastAPI app
 app = FastAPI(
     title="PeachMe API",
-    description="API for PeachMe chat and video analysis application",
-    version="0.1.0"
+    description="API for PeachMe video transcription and analysis",
+    version="1.0.0"
 )
 
-# Configure CORS
+# Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # For development, in production specify domains
+    allow_origins=CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 # Include routers
-app.include_router(chat_router, prefix="/api")
 app.include_router(video_router, prefix="/api/video")
-
 
 @app.get("/")
 async def root():
@@ -32,8 +36,6 @@ async def root():
     return {
         "message": "Welcome to PeachMe API",
         "api_endpoints": {
-            "chat": "/api/chat",
-            "conversations": "/api/conversations",
             "video": {
                 "transcribe": "/api/video/transcribe",
                 "analyze": "/api/video/analyze"

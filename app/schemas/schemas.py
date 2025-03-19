@@ -56,17 +56,14 @@ class Conversation(ConversationBase):
 
 class ChatRequest(BaseModel):
     """Schema for chat request"""
-    message: str = Field(description="The user's message")
-    conversation_id: Optional[str] = Field(
-        None, description="The conversation ID (if continuing a conversation)")
+    message: str
 
 # Chat response schema
 
 
 class ChatResponse(BaseModel):
     """Schema for chat response"""
-    response: str = Field(description="The assistant's response")
-    conversation_id: str = Field(description="The conversation ID")
+    response: str
 
 # Conversation messages response schema
 
@@ -79,10 +76,16 @@ class ConversationMessagesResponse(BaseModel):
 # Video transcription response schemas
 class TranscriptionResponse(BaseModel):
     """Schema for video transcription response"""
-    transcript: str = Field(description="The transcribed text from the video")
-    conversation_id: Optional[str] = Field(None, description="The conversation ID if saved to a conversation")
+    transcript: str
 
 class FeedbackResponse(BaseModel):
     """Schema for feedback response"""
-    feedback: str = Field(description="Structured feedback based on the transcript")
-    conversation_id: str = Field(description="The conversation ID where the feedback is stored")
+    clarity: int = Field(description="Rating from 1-5 for clarity of presentation")
+    clarity_feedback: str = Field(description="Detailed feedback about clarity")
+    content: int = Field(description="Rating from 1-5 for content quality")
+    content_feedback: str = Field(description="Detailed feedback about content")
+    structure: int = Field(description="Rating from 1-5 for pitch structure")
+    structure_feedback: str = Field(description="Detailed feedback about structure")
+    delivery: int = Field(description="Rating from 1-5 for delivery style")
+    delivery_feedback: str = Field(description="Detailed feedback about delivery")
+    feedback: str = Field(description="Overall feedback and suggestions")
