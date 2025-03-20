@@ -164,7 +164,7 @@ market_research_agent = Agent(
     - Growth: Annual growth rate (%)
     - Projection: Projected market size in 5 years if available
     
-    IMPORTANT: For EACH market size metric (overall, growth, projection), you MUST provide a specific source URL where the data was found.
+    *** CRITICAL REQUIREMENT: For EACH market size metric (overall, growth, projection), you MUST provide a specific source URL where the data was found. This is a mandatory requirement. If you can't find a source URL, provide the most relevant search result URL. ***
     
     For market trends:
     - Title: A short name for the trend
@@ -172,7 +172,7 @@ market_research_agent = Agent(
     
     Also provide:
     - A brief summary (3-4 sentences) capturing key insights from your research
-    - Source URLs for market trends information
+    - Source URLs for market trends information (MANDATORY)
     - A brief explanation of how projected growth was calculated (e.g., compound annual growth rate formula, industry report projection, etc.)
     
     Focus on finding factual, current information from reliable sources. Be specific with numbers
@@ -199,7 +199,10 @@ market_research_agent = Agent(
       ],
       "trends_source": "URL for market trends information",
       "growth_calculation": "Explanation of projected growth calculation"
-    }""",
+    }
+    
+    SOURCES ARE MANDATORY - You must include source URLs for all market data.
+    """,
     tools=[WebSearchTool()],
 )
 
@@ -357,31 +360,10 @@ async def conduct_market_research(
         - Future market projection - MUST have a source URL
         - Market trends - MUST have a source URL
         
-        These source URLs are critical for our application to work correctly. Use the exact JSON format below and ensure all source fields have valid URLs.
+        These source URLs are critical for our application to work correctly. Use the exact JSON format in the instructions.
         
         If projecting growth, explain how the projection was calculated.
-        Format your response as valid JSON with this structure:
-        {
-          "summary": "Brief summary of findings",
-          "competitors": [
-            {"name": "Company Name", "description": "Description", "url": "URL"}
-          ],
-          "market_size": {
-            "overall": "Size in dollars",
-            "growth": "Growth rate",
-            "projection": "Future projection"
-          },
-          "market_size_sources": {
-            "overall": "URL for overall market size data",
-            "growth": "URL for growth rate data",
-            "projection": "URL for projected market size data"
-          },
-          "trends": [
-            {"title": "Trend Name", "description": "Trend description"}
-          ],
-          "trends_source": "URL for market trends information",
-          "growth_calculation": "Explanation of projected growth calculation"
-        }
+        Format your response as valid JSON matching the structure in the instructions.
         """
         
         print("\nSENDING PROMPT TO RESEARCH AGENT:")
@@ -414,16 +396,25 @@ async def conduct_market_research(
             response_text = None
             for attr in ['output', 'response', 'content', 'text', 'message', 'final_output']:
                 if hasattr(result, attr):
-                    response_text = getattr(result, attr)
-                    print(f"Using result.{attr} for response text")
-                    logging.info(f"Using result.{attr}")
-                    break
+                    try:
+                        response_text = getattr(result, attr)
+                        print(f"Using result.{attr} for response text (type: {type(response_text)})")
+                        logging.info(f"Using result.{attr} (type: {type(response_text)})")
+                        break
+                    except Exception as attr_error:
+                        print(f"Error accessing attribute {attr}: {str(attr_error)}")
+                        logging.error(f"Error accessing attribute {attr}: {str(attr_error)}")
             
             # If no recognized attribute is found, use string representation
             if response_text is None:
-                response_text = str(result)
-                print("No standard attributes found, using str(result)")
-                logging.info("Using str(result)")
+                try:
+                    response_text = str(result)
+                    print("No standard attributes found, using str(result)")
+                    logging.info("Using str(result)")
+                except Exception as str_error:
+                    print(f"Error converting result to string: {str_error}")
+                    logging.error(f"Error converting result to string: {str_error}")
+                    response_text = "Error: Could not extract response text"
             
             print(f"\nRAW RESPONSE PREVIEW (first 300 chars):")
             print("-"*60)
@@ -433,31 +424,49 @@ async def conduct_market_research(
             
             # Try to find JSON in the response
             print("\nEXTRACTING JSON FROM RESPONSE...")
-            json_match = re.search(r'```json\n(.*?)\n```', str(response_text), re.DOTALL)
-            if json_match:
-                json_str = json_match.group(1)
-                print("Found JSON in code block with json marker")
-                logging.info("Found JSON in code block with json marker")
-            else:
-                json_match = re.search(r'```\n(.*?)\n```', str(response_text), re.DOTALL)
+            try:
+                json_match = re.search(r'```json\n(.*?)\n```', str(response_text), re.DOTALL)
                 if json_match:
                     json_str = json_match.group(1)
-                    print("Found JSON in generic code block")
-                    logging.info("Found JSON in generic code block")
+                    print("Found JSON in code block with json marker")
+                    logging.info("Found JSON in code block with json marker")
                 else:
-                    # Just try to use the whole response
-                    json_str = str(response_text)
-                    print("No code blocks found, using entire response as JSON")
-                    logging.info("Using entire response as JSON")
-            
-            # Clean up potential issues in JSON
-            json_str = json_str.strip()
-            
-            # Try to parse JSON
-            print("\nPARSING JSON...")
-            research_data = json.loads(json_str)
-            print(f"Successfully parsed JSON with {len(research_data)} keys: {', '.join(research_data.keys())}")
-            logging.info(f"Successfully parsed JSON with keys: {research_data.keys()}")
+                    json_match = re.search(r'```\n(.*?)\n```', str(response_text), re.DOTALL)
+                    if json_match:
+                        json_str = json_match.group(1)
+                        print("Found JSON in generic code block")
+                        logging.info("Found JSON in generic code block")
+                    else:
+                        # Just try to use the whole response
+                        json_str = str(response_text)
+                        print("No code blocks found, using entire response as JSON")
+                        logging.info("Using entire response as JSON")
+                
+                # Clean up potential issues in JSON
+                json_str = json_str.strip()
+                
+                # Try to parse JSON
+                print("\nPARSING JSON...")
+                print(f"JSON string to parse (first 200 chars): {json_str[:200]}...")
+                research_data = json.loads(json_str)
+                print(f"Successfully parsed JSON with {len(research_data)} keys: {', '.join(research_data.keys())}")
+                logging.info(f"Successfully parsed JSON with keys: {research_data.keys()}")
+            except Exception as json_error:
+                print(f"ERROR PARSING JSON: {str(json_error)}")
+                logging.error(f"Error parsing JSON: {str(json_error)}")
+                
+                # Try direct access if JSON parsing fails
+                try:
+                    if hasattr(result, 'final_output') and isinstance(result.final_output, dict):
+                        research_data = result.final_output
+                        print(f"Using result.final_output directly as dictionary")
+                        logging.info(f"Using result.final_output directly as dictionary")
+                    else:
+                        raise ValueError("Could not extract JSON from response")
+                except Exception as direct_error:
+                    print(f"ERROR USING DIRECT OUTPUT: {str(direct_error)}")
+                    logging.error(f"Error using direct output: {str(direct_error)}")
+                    raise json_error  # Re-raise the original JSON error
             
             # Validate required fields
             print("\nVALIDATING AND FILLING MISSING FIELDS...")
