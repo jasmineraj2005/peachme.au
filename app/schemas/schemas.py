@@ -89,3 +89,38 @@ class FeedbackResponse(BaseModel):
     delivery: int = Field(description="Rating from 1-5 for delivery style")
     delivery_feedback: str = Field(description="Detailed feedback about delivery")
     feedback: str = Field(description="Overall feedback and suggestions")
+
+class ContextExtractionResponse(BaseModel):
+    """Schema for pitch context extraction response"""
+    industry: str = Field(description="The primary industry the pitch is focused on")
+    verticals: List[str] = Field(description="Specific market segments or verticals mentioned in the pitch")
+    problem: str = Field(description="The main problem or pain point the pitch addresses")
+    summary: str = Field(description="Brief summary of the pitch context")
+
+class EnhancedFeedbackResponse(FeedbackResponse):
+    """Schema for enhanced feedback response that includes context extraction"""
+    context: ContextExtractionResponse = Field(description="Extracted context information from the pitch")
+
+class CompetitorResponse(BaseModel):
+    """Schema for competitor information"""
+    name: str = Field(description="Name of the competitor")
+    description: str = Field(description="Brief description of their offering")
+    url: Optional[str] = Field(description="Website URL if available", default=None)
+
+class MarketSizeResponse(BaseModel):
+    """Schema for market size information"""
+    overall: str = Field(description="Overall market size (in $ billions or millions)")
+    growth: Optional[str] = Field(description="Annual growth rate (%)", default=None)
+    projection: Optional[str] = Field(description="Projected market size in 5 years", default=None)
+
+class MarketTrendResponse(BaseModel):
+    """Schema for market trend information"""
+    title: str = Field(description="Title of the trend")
+    description: str = Field(description="Description of the trend and its impact")
+
+class MarketResearchResponse(BaseModel):
+    """Schema for market research response"""
+    competitors: List[CompetitorResponse] = Field(description="List of competitors in the problem space")
+    market_size: MarketSizeResponse = Field(description="Market size information")
+    trends: List[MarketTrendResponse] = Field(description="Key market trends")
+    summary: str = Field(description="Brief summary of research findings")
