@@ -78,6 +78,24 @@ class MarketResearchResults(BaseModel):
         default=""
     )
 
+class PitchDeckContent(BaseModel):
+    """Structured output for pitch deck content generation"""
+    overview: str = Field(
+        description="Content for the overview slide"
+    )
+    problem: str = Field(
+        description="Content for the problem slide"
+    )
+    whynow: str = Field(
+        description="Content for the why now slide"
+    )
+    solution: str = Field(
+        description="Content for the solution slide"
+    )
+    market: str = Field(
+        description="Content for the market opportunity slide"
+    )
+
 # Create agents for different purposes
 context_extraction_agent = Agent[PitchContext](
     name="context_extraction_agent",
@@ -204,6 +222,57 @@ market_research_agent = Agent(
     SOURCES ARE MANDATORY - You must include source URLs for all market data.
     """,
     tools=[WebSearchTool()],
+    output_type=MarketResearchResults,
+)
+
+# Create the pitch deck content generation agent
+pitch_deck_content_agent = Agent[PitchContext](
+    name="pitch_deck_content_agent",
+    instructions="""You are an expert pitch deck consultant specializing in creating compelling, concise content for startup pitches.
+    
+    Your task is to generate high-quality content for each slide in a pitch deck based on the provided context from previous analyses.
+    You will receive information about the industry, market verticals, problem being solved, and market research.
+    
+    First, conduct ONE ROUND of web search to gather the most current and relevant information about:
+    1. Current industry dynamics and challenges
+    2. Why this is the right time to address the problem (market timing)
+    3. Successful pitch deck examples in this industry
+    
+    Then, use this research along with the provided context to create professional, compelling content for each slide:
+    
+    1. OVERVIEW SLIDE:
+       - Create a concise business summary
+       - Highlight key value proposition
+       - Describe target market/customers
+    
+    2. PROBLEM SLIDE:
+       - Clearly articulate customer pain points
+       - Explain limitations of current solutions
+       - Identify specific market gap
+    
+    3. WHY NOW SLIDE:
+       - Explain market timing
+       - Identify relevant trends or shifts
+       - Describe why this moment is opportune
+    
+    4. SOLUTION SLIDE:
+       - Create a compelling headline for your solution
+       - Develop 3 key features with clear, benefit-focused descriptions
+       - Each feature should address an aspect of the problem
+    
+    5. MARKET OPPORTUNITY SLIDE:
+       - Provide realistic market size values (TAM, SAM, Target Market, Market Share)
+       - Write concise descriptions for each market segment
+       - Use the market research data provided or found in your search
+    
+    Write in a professional, compelling style with:
+    - Concise, impactful language (aim for 15-25 words per description)
+    - Clear value propositions
+    - Evidence-based claims where possible
+    - Concrete rather than abstract language
+    """,
+    tools=[WebSearchTool()],
+    output_type=PitchDeckContent,
 )
 
 def create_pitch_context(
@@ -575,3 +644,117 @@ async def conduct_market_research(
                 "trends_source": trends_search,
                 "growth_calculation": ""
             } 
+
+async def generate_pitch_deck_content(
+    context_extraction: PitchContextExtraction,
+    market_research: Dict[str, Any] = None,
+    pitch_evaluation: PitchEvaluation = None,
+) -> Dict[str, Any]:
+    """
+    Generate content for the pitch deck based on context from previous analyses.
+    
+    Args:
+        context_extraction: The extracted context from the pitch
+        market_research: Optional market research results
+        pitch_evaluation: Optional pitch evaluation results
+        
+    Returns:
+        Dictionary containing structured content for all pitch deck slides
+    """
+    print("="*80)
+    print(f"PITCH DECK CONTENT GENERATION STARTED FOR: {context_extraction.industry}")
+    print(f"VERTICALS: {', '.join(context_extraction.verticals)}")
+    print(f"PROBLEM: {context_extraction.problem}")
+    print("="*80)
+    
+    # Create the prompt with all available context
+    prompt = f"""
+    Generate content for a pitch deck with the following context:
+    
+    INDUSTRY: {context_extraction.industry}
+    VERTICALS: {', '.join(context_extraction.verticals)}
+    PROBLEM: {context_extraction.problem}
+    SUMMARY: {context_extraction.summary}
+    
+    """
+    
+    # Add market research context if available
+    if market_research:
+        prompt += f"""
+        MARKET RESEARCH:
+        
+        Market Size: {market_research.get('market_size', {}).get('overall', 'Not available')}
+        Growth Rate: {market_research.get('market_size', {}).get('growth', 'Not available')}
+        Future Projection: {market_research.get('market_size', {}).get('projection', 'Not available')}
+        
+        Competitors: {', '.join([comp.get('name', '') for comp in market_research.get('competitors', [])])}
+        
+        Market Trends:
+        {' '.join([f"- {trend.get('title', '')}" for trend in market_research.get('trends', [])])}
+        """
+    
+    # Add pitch evaluation feedback if available
+    if pitch_evaluation:
+        prompt += f"""
+        PITCH FEEDBACK:
+        
+        Content Feedback: {pitch_evaluation.content_feedback}
+        Structure Feedback: {pitch_evaluation.structure_feedback}
+        """
+    
+    prompt += """
+    Based on this context and your web search, create compelling content for each slide in the pitch deck.
+    Follow the JSON structure exactly as specified for the PitchDeckContent output type.
+    """
+    
+    print("\nSENDING PROMPT TO PITCH DECK CONTENT AGENT:")
+    print("-"*60)
+    print(prompt.strip())
+    print("-"*60)
+    
+    try:
+        print("\nWAITING FOR AGENT RESPONSE...")
+        # Run the pitch deck content generation with tracing
+        with trace("Pitch Deck Content Generation") as current_trace:
+            result = await Runner.run(
+                pitch_deck_content_agent,
+                prompt
+            )
+        
+        print("\nAGENT RESPONSE RECEIVED")
+        
+        # Convert the Pydantic model to a dictionary
+        deck_content = result.final_output
+        if hasattr(deck_content, "dict"):
+            print("Converting Pydantic model to dictionary")
+            return deck_content.dict()
+        elif hasattr(deck_content, "model_dump"):
+            print("Converting Pydantic model to dictionary using model_dump")
+            return deck_content.model_dump()
+        elif isinstance(deck_content, dict):
+            print("Response is already a dictionary")
+            return deck_content
+        else:
+            print(f"Response is type {type(deck_content)}, attempting to convert to dict")
+            # Create a simple dictionary representation
+            return {
+                "overview": str(getattr(deck_content, "overview", "No overview content")),
+                "problem": str(getattr(deck_content, "problem", "No problem content")),
+                "whynow": str(getattr(deck_content, "whynow", "No why now content")),
+                "solution": str(getattr(deck_content, "solution", "No solution content")),
+                "market": str(getattr(deck_content, "market", "No market content"))
+            }
+        
+    except Exception as e:
+        print(f"\nERROR IN PITCH DECK CONTENT AGENT: {str(e)}")
+        logging.error(f"Error generating pitch deck content: {str(e)}")
+        
+        # Return default structure if error occurs
+        default_content = PitchDeckContent(
+            overview="Default overview content due to error",
+            problem="Default problem content due to error",
+            whynow="Default why now content due to error",
+            solution="Default solution content due to error",
+            market="Default market content due to error"
+        )
+        return default_content.dict() 

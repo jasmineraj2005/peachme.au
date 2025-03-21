@@ -11,6 +11,19 @@ load_dotenv()
 # Get CORS origins from environment variable
 CORS_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
 
+# For development, ensure all localhost origins are allowed
+CORS_ORIGINS.extend([
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
+    "http://localhost:8001",  # The current FastAPI port
+    "http://127.0.0.1:8001"   # Alternative localhost notation
+])
+
+# Log the allowed origins for debugging
+print(f"CORS allowed origins: {CORS_ORIGINS}")
+
 # Create FastAPI app
 app = FastAPI(
     title="PeachMe API",
@@ -18,7 +31,7 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Add CORS middleware
+# Add CORS middleware to allow cross-origin requests from frontend
 app.add_middleware(
     CORSMiddleware,
     allow_origins=CORS_ORIGINS,
