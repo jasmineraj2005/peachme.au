@@ -96,6 +96,21 @@ class PitchDeckContent(BaseModel):
         description="Content for the market opportunity slide"
     )
 
+class JSXPitchDeckOutput(BaseModel):
+    """Output containing the JSX component for a pitch deck"""
+    jsx_code: str = Field(
+        description="The complete JSX code for the pitch deck component"
+    )
+
+class PitchDeckResponse(BaseModel):
+    """Complete response for pitch deck generation including content and JSX"""
+    overview: str = Field(description="Content for the overview slide")
+    problem: str = Field(description="Content for the problem slide")
+    whynow: str = Field(description="Content for the why now slide")
+    solution: str = Field(description="Content for the solution slide")
+    market: str = Field(description="Content for the market opportunity slide")
+    jsx_code: str = Field(description="The complete JSX code for the pitch deck component")
+
 # Create agents for different purposes
 context_extraction_agent = Agent[PitchContext](
     name="context_extraction_agent",
@@ -273,6 +288,93 @@ pitch_deck_content_agent = Agent[PitchContext](
     """,
     tools=[WebSearchTool()],
     output_type=PitchDeckContent,
+)
+
+# Create a new agent for JSX pitch deck generation
+jsx_pitch_deck_agent = Agent(
+    name="jsx_pitch_deck_agent",
+    instructions="""You are an expert React developer specializing in creating stunning, professional pitch deck pages using JSX.
+    
+    Your task is to generate a beautiful, visually impressive React component in JSX format that presents a startup pitch deck
+    based on the provided content. The JSX should be valid, well-formatted, and use Tailwind CSS for styling.
+    
+    Adhere to these professional design principles:
+    
+    1. Use a professional color scheme with a primary brand color and complementary accent colors
+    2. Apply consistent spacing and visual hierarchy with clear section differentiation
+    3. Incorporate visually engaging elements like gradient backgrounds, subtle shadows, and well-styled cards
+    4. Use modern, clean typography with proper font sizing and weight hierarchy
+    5. Add professional micro-interactions (hover effects, transitions) that enhance usability
+    6. Ensure excellent responsive design that looks great on all screen sizes
+    7. Include visualization elements such as simulated charts or graphs where appropriate
+    8. Use data visualization techniques for market sizing and growth metrics
+    9. Add iconography where it enhances understanding (using React Icons)
+    10. Create visual distinctions between different types of content (problem vs. solution)
+    
+    Technical requirements:
+    
+    1. Return ONLY JSX code, with no explanations, markdown formatting, or comments
+    2. Create a single functional React component that contains the entire pitch deck
+    3. Use Tailwind CSS for styling and responsive design
+    4. Include necessary imports at the top, especially for React Icons:
+       ```
+       import { FaChartPie, FaLightbulb, FaRocket, FaUsers, FaChartLine } from 'react-icons/fa';
+       import { BiTrendingUp, BiTargetLock, BiTime } from 'react-icons/bi';
+       ```
+    5. Use semantic HTML elements and appropriate heading hierarchy
+    6. Ensure the component is fully responsive with mobile-first design
+    7. Use `className` instead of `class` for CSS classes
+    8. Structure the code cleanly with logical section organization
+    9. Create simulated chart components using divs, borders and background colors (don't rely on external chart libraries)
+    10. Add subtle animations and transitions with Tailwind's hover, focus, and group classes
+    
+    The output should be a complete React component that can be directly inserted into a Next.js application.
+    
+    Structure the pitch deck with these visually distinct sections:
+    1. Hero header with company name, tagline, and visual appeal
+    2. Overview section with visual highlights of key points
+    3. Problem section with visual representation of the pain points
+    4. Why Now section with timeline or trend visualization
+    5. Solution section with visual feature highlights
+    6. Market section with market size visualization (chart/graph representation)
+    
+    Example of quality design elements to include:
+    - Gradient backgrounds
+    - Card-based designs with shadows
+    - Icon integration
+    - Visual data representations
+    - Color-coded sections
+    - Consistent spacing
+    - Responsive grid layouts
+    - Interactive elements (hover states, etc.)
+    
+    Your final output should look something like:
+
+    ```jsx
+    import { FC } from 'react';
+    import { FaChartPie, FaLightbulb, FaRocket, FaUsers } from 'react-icons/fa';
+    
+    const PitchDeck: FC = () => {
+      return (
+        <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-blue-50">
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+            {/* Hero Section with visual impact */}
+            <header className="text-center mb-16 py-12 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl shadow-xl text-white">
+              <h1 className="text-5xl font-bold mb-3">Company Name</h1>
+              <p className="text-xl font-light max-w-2xl mx-auto">Compelling tagline that captures essence</p>
+            </header>
+            
+            {/* Visually distinct sections with quality design elements */}
+          </div>
+        </div>
+      );
+    };
+    
+    export default PitchDeck;
+    ```
+    
+    Only return the JSX code, nothing else. Make sure all necessary React icon imports are included.""",
+    output_type=JSXPitchDeckOutput,
 )
 
 def create_pitch_context(
@@ -649,9 +751,9 @@ async def generate_pitch_deck_content(
     context_extraction: PitchContextExtraction,
     market_research: Dict[str, Any] = None,
     pitch_evaluation: PitchEvaluation = None,
-) -> Dict[str, Any]:
+) -> PitchDeckResponse:
     """
-    Generate content for the pitch deck based on context from previous analyses.
+    Generate pitch deck content based on context extraction and optional market research.
     
     Args:
         context_extraction: The extracted context from the pitch
@@ -659,7 +761,7 @@ async def generate_pitch_deck_content(
         pitch_evaluation: Optional pitch evaluation results
         
     Returns:
-        Dictionary containing structured content for all pitch deck slides
+        PitchDeckResponse object containing pitch deck content and JSX code
     """
     print("="*80)
     print(f"PITCH DECK CONTENT GENERATION STARTED FOR: {context_extraction.industry}")
@@ -723,27 +825,106 @@ async def generate_pitch_deck_content(
         
         print("\nAGENT RESPONSE RECEIVED")
         
-        # Convert the Pydantic model to a dictionary
+        # Convert the Pydantic model to a PitchDeckResponse object
         deck_content = result.final_output
-        if hasattr(deck_content, "dict"):
-            print("Converting Pydantic model to dictionary")
-            return deck_content.dict()
-        elif hasattr(deck_content, "model_dump"):
-            print("Converting Pydantic model to dictionary using model_dump")
-            return deck_content.model_dump()
-        elif isinstance(deck_content, dict):
-            print("Response is already a dictionary")
-            return deck_content
+        if isinstance(deck_content, PitchDeckContent):
+            print("Converting Pydantic model to PitchDeckResponse")
+            deck_content_dict = deck_content.dict()
         else:
             print(f"Response is type {type(deck_content)}, attempting to convert to dict")
             # Create a simple dictionary representation
-            return {
+            deck_content_dict = {
                 "overview": str(getattr(deck_content, "overview", "No overview content")),
                 "problem": str(getattr(deck_content, "problem", "No problem content")),
                 "whynow": str(getattr(deck_content, "whynow", "No why now content")),
                 "solution": str(getattr(deck_content, "solution", "No solution content")),
                 "market": str(getattr(deck_content, "market", "No market content"))
             }
+        
+        # Now generate the JSX code based on the content
+        jsx_prompt = f"""
+        Create a beautiful, professional pitch deck page using JSX and Tailwind CSS for the following startup:
+        
+        Industry: {context_extraction.industry}
+        Problem: {context_extraction.problem}
+        
+        SLIDE CONTENT:
+        
+        OVERVIEW:
+        {deck_content_dict["overview"]}
+        
+        PROBLEM:
+        {deck_content_dict["problem"]}
+        
+        WHY NOW:
+        {deck_content_dict["whynow"]}
+        
+        SOLUTION:
+        {deck_content_dict["solution"]}
+        
+        MARKET:
+        {deck_content_dict["market"]}
+        
+        MARKET RESEARCH:
+        {market_research["summary"] if market_research and "summary" in market_research else ""}
+        
+        Competitors: {", ".join([comp.get("name", "Unknown") for comp in market_research.get("competitors", [])][:3]) if market_research else ""}
+        
+        Market Size: {market_research.get("market_size", {}).get("overall", "Unknown") if market_research else "Unknown"}
+        Market Growth: {market_research.get("market_size", {}).get("growth", "Unknown") if market_research else "Unknown"}
+        
+        DESIGN REQUIREMENTS:
+        
+        1. Use a modern, professional design with a cohesive color palette derived from the industry
+        2. For {context_extraction.industry}, consider using these color schemes:
+           - Technology/SaaS: Blue, purple gradients with white/light backgrounds
+           - Healthcare: Soft blues and greens with clean white space
+           - Finance: Navy blue, teal, with subtle gold accents
+           - Education: Sky blue, orange accents, warm colors
+           - E-commerce: Vibrant colors with clean white space
+        
+        3. Create visualizations for data points:
+           - Use a simulated pie chart or bar chart for market size data
+           - Create a timeline visualization for the Why Now section
+           - Add feature cards with icons for the Solution section
+        
+        4. Use iconography appropriate to {context_extraction.industry} industry
+        5. Include subtle animations and transitions (hover effects, etc.)
+        6. Ensure the design is fully responsive and looks great on all devices
+        7. Use visual hierarchy to draw attention to key points
+        8. Incorporate white space effectively for a clean, professional look
+        
+        The final JSX code must be complete and ready to use within a Next.js application, with all necessary imports.
+        """
+        
+        print("\nGENERATING JSX COMPONENT...")
+        with trace("JSX Pitch Deck Generation") as jsx_trace:
+            jsx_result = await Runner.run(
+                jsx_pitch_deck_agent,
+                jsx_prompt
+            )
+        
+        # Add the JSX code to the response
+        jsx_code = jsx_result.final_output.jsx_code
+        
+        # Strip out any markdown code block markers if they exist
+        if jsx_code.startswith("```") and jsx_code.endswith("```"):
+            jsx_code_lines = jsx_code.split("\n")
+            if jsx_code_lines[0].startswith("```"):
+                jsx_code_lines = jsx_code_lines[1:]
+            if jsx_code_lines[-1].startswith("```"):
+                jsx_code_lines = jsx_code_lines[:-1]
+            jsx_code = "\n".join(jsx_code_lines)
+        
+        # Return a PitchDeckResponse object
+        return PitchDeckResponse(
+            overview=deck_content_dict["overview"],
+            problem=deck_content_dict["problem"],
+            whynow=deck_content_dict["whynow"],
+            solution=deck_content_dict["solution"],
+            market=deck_content_dict["market"],
+            jsx_code=jsx_code
+        )
         
     except Exception as e:
         print(f"\nERROR IN PITCH DECK CONTENT AGENT: {str(e)}")
@@ -757,4 +938,12 @@ async def generate_pitch_deck_content(
             solution="Default solution content due to error",
             market="Default market content due to error"
         )
-        return default_content.dict() 
+        
+        return PitchDeckResponse(
+            overview=default_content.overview,
+            problem=default_content.problem,
+            whynow=default_content.whynow,
+            solution=default_content.solution,
+            market=default_content.market,
+            jsx_code="// Error generating JSX component"
+        ) 

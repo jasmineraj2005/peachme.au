@@ -19,7 +19,7 @@ from app.schemas.schemas import (
     MarketTrendResponse
 )
 from app.services.speech_to_text import get_transcript
-from app.core.agent_utils import analyze_pitch, extract_pitch_context, conduct_market_research, generate_pitch_deck_content, PitchContextExtraction, PitchEvaluation
+from app.core.agent_utils import analyze_pitch, extract_pitch_context, conduct_market_research, generate_pitch_deck_content, PitchContextExtraction, PitchEvaluation, PitchDeckResponse
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -283,14 +283,18 @@ async def generate_deck_content(
         logger.info("Calling generate_pitch_deck_content function")
         
         # Call the actual agent
-        deck_content = await generate_pitch_deck_content(
+        pitch_deck_response = await generate_pitch_deck_content(
             context_extraction=context_extraction,
             market_research=market_research,
             pitch_evaluation=pitch_evaluation
         )
         
-        logger.info(f"Generated pitch deck content with keys: {', '.join(deck_content.keys()) if isinstance(deck_content, dict) else 'non-dict response'}")
-        return JSONResponse(content=deck_content)
+        # Convert the Pydantic model to a dictionary for the JSON response
+        logger.info(f"Generated pitch deck response - Overview length: {len(pitch_deck_response.overview)}")
+        logger.info(f"JSX code length: {len(pitch_deck_response.jsx_code)}")
+        
+        # Return the model as a JSON response
+        return JSONResponse(content=pitch_deck_response.dict())
         
     except Exception as e:
         logger.error(f"Error in generate_deck_content: {str(e)}")

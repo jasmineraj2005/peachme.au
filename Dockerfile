@@ -17,7 +17,7 @@ RUN pip install --no-cache-dir -r requirements.txt \
 # Copy the application code
 COPY main.py .
 COPY app ./app
-COPY media ./media
+
 
 # Create necessary directories
 RUN mkdir -p media
