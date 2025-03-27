@@ -237,7 +237,6 @@ market_research_agent = Agent(
     SOURCES ARE MANDATORY - You must include source URLs for all market data.
     """,
     tools=[WebSearchTool()],
-    output_type=MarketResearchResults,
 )
 
 # Create the pitch deck content generation agent
