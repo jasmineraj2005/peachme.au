@@ -1,170 +1,33 @@
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
-from sqlalchemy.orm import Session
-from typing import List
+from fastapi import APIRouter, HTTPException, status, UploadFile, File
+from typing import List, Dict, Any
 import logging
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, JSONResponse
 import os
 from pathlib import Path
+import datetime
 
-from app.db.database import get_db
-from app.models.models import Conversation, Message
-from app.schemas.schemas import (
-    ChatRequest, 
-    ChatResponse, 
-    ConversationMessagesResponse,
-    MessageCreate,
-    ConversationCreate,
-    TranscriptionResponse,
-    FeedbackResponse
-)
-from app.services.chat_service import ChatService
-from app.core.langchain_utils import process_chat_message
+
 from app.services.speech_to_text import get_transcript
-
+from app.core.agent_utils import (
+    extract_pitch_context,
+    analyze_pitch,
+    conduct_market_research,
+    generate_pitch_deck_content
+)
+from app.schemas.schemas import PitchContext, PitchContextExtraction, PitchEvaluation, PitchDeckContent, JSXPitchDeckOutput, PitchDeckResponse, TranscriptionResponse, EnhancedFeedbackResponse, MarketResearchResponse, CompetitorResponse, MarketSizeResponse, MarketTrendResponse, ContextExtractionResponse, ChatRequest
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Create routers
-chat_router = APIRouter(tags=["chat"])
 video_router = APIRouter(tags=["video"])
-
-@chat_router.post("/chat", response_model=ChatResponse)
-async def chat_message(
-    request: ChatRequest,
-    db: Session = Depends(get_db)
-):
-    """
-    Send a message to the chatbot and get a response.
-    
-    If conversation_id is provided, the message will be added to that conversation.
-    If the conversation_id is not found, a new conversation will be created.
-    Otherwise, a new conversation will be created.
-    """
-    try:
-        # Process the chat message using the process_chat_message function from langchain_utils
-        result = await process_chat_message(
-            db=db,
-            message_content=request.message,
-            conversation_id=request.conversation_id,
-            user_id=None  # For now, all users are anonymous
-        )
-        
-        # Return the response
-        return ChatResponse(
-            response=result["response"],
-            conversation_id=result["conversation_id"]
-        )
-    except Exception as e:
-        logger.error(f"Error in chat_message: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"An error occurred: {str(e)}"
-        )
-
-@chat_router.post("/chat/stream")
-async def stream_chat(
-    request: ChatRequest,
-    db: Session = Depends(get_db)
-):
-    """
-    Send a message to the chatbot and get a streaming response.
-    
-    This endpoint returns a streaming response with chunks of the AI's reply
-    as they are generated, enabling real-time UI updates.
-    """
-    async def event_generator():
-        try:
-            async for chunk in stream_chat_response(
-                db=db,
-                message_content=request.message,
-                conversation_id=request.conversation_id,
-                user_id=None  # For now, all users are anonymous
-            ):
-                # Format each chunk as a server-sent event
-                yield f"data: {chunk}\n\n"
-        except Exception as e:
-            logger.error(f"Error in stream_chat: {str(e)}")
-            yield f"data: Error: {str(e)}\n\n"
-    
-    return StreamingResponse(
-        event_generator(),
-        media_type="text/event-stream"
-    )
-
-@chat_router.post("/chat/structured", response_model=ChatResponse)
-async def structured_chat_message(
-    request: ChatRequest,
-    db: Session = Depends(get_db)
-):
-    """
-    Send a message to the chatbot and get a structured response.
-    
-    This endpoint uses the Pydantic output parser to provide
-    a structured analysis of pitch content with scores and detailed feedback.
-    """
-    try:
-        # Process the chat message with structured output
-        result = await process_chat_message(
-            db=db,
-            message_content=request.message,
-            conversation_id=request.conversation_id,
-            user_id=None,  # For now, all users are anonymous
-            use_structured_output=True
-        )
-        
-        # Return the response
-        return ChatResponse(
-            response=result["response"],
-            conversation_id=result["conversation_id"]
-        )
-    except Exception as e:
-        logger.error(f"Error in structured_chat_message: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"An error occurred: {str(e)}"
-        )
-
-@chat_router.get("/conversations/{conversation_id}", response_model=ConversationMessagesResponse)
-async def get_conversation_messages(
-    conversation_id: str,
-    db: Session = Depends(get_db)
-):
-    """
-    Get all messages in a conversation.
-    """
-    try:
-        conversation = await ChatService.get_conversation(db, conversation_id)
-        if not conversation:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Conversation not found"
-            )
-        
-        messages = await ChatService.get_conversation_messages(db, conversation_id)
-        
-        return ConversationMessagesResponse(
-            messages=messages,
-            conversation_id=conversation_id
-        )
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error in get_conversation_messages: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"An error occurred: {str(e)}"
-        )
 
 @video_router.post("/transcribe", response_model=TranscriptionResponse)
 async def transcribe_video(
     video: UploadFile = File(...),
-    save_to_conversation: bool = False,
-    db: Session = Depends(get_db)
 ):
     """
-    Upload a video file and get its transcript.
-    Optionally save the transcript to a new conversation.
+    Upload a video file and get its transcript using OpenAI's Whisper API.
     """
     try:
         # Create media directory if it doesn't exist
@@ -177,7 +40,7 @@ async def transcribe_video(
             content = await video.read()
             f.write(content)
 
-        # Get transcript
+        # Get transcript from OpenAI API
         transcript = get_transcript(str(video_path))
         
         if isinstance(transcript, str) and transcript.startswith("Error:"):
@@ -186,21 +49,8 @@ async def transcribe_video(
                 detail=transcript
             )
 
-        # Optionally save to conversation
-        conversation_id = None
-        if save_to_conversation:
-            result = await process_chat_message(
-                db=db,
-                message_content=transcript,
-                conversation_id=None,
-                user_id=None,
-                save_only=True  # Only save, don't process
-            )
-            conversation_id = result["conversation_id"]
-
         return TranscriptionResponse(
-            transcript=transcript,
-            conversation_id=conversation_id
+            transcript=transcript
         )
 
     except Exception as e:
@@ -210,27 +60,50 @@ async def transcribe_video(
             detail=f"An error occurred: {str(e)}"
         )
 
-@video_router.post("/analyze", response_model=FeedbackResponse)
+@video_router.post("/analyze", response_model=EnhancedFeedbackResponse)
 async def analyze_transcript(
     request: ChatRequest,
-    db: Session = Depends(get_db)
 ):
     """
-    Analyze a transcript and get structured feedback.
+    Analyze a transcript and get structured feedback with context extraction.
     The transcript should be provided in the message field of the request.
+    
+    This endpoint performs two steps:
+    1. Extract context (industry, verticals, problem) from the transcript
+    2. Analyze the pitch quality and provide structured feedback
     """
     try:
-        result = await process_chat_message(
-            db=db,
-            message_content=request.message,
-            conversation_id=request.conversation_id,
-            user_id=None,
-            use_structured_output=True
+        # First, extract context from the transcript
+        context_extraction = await extract_pitch_context(pitch_content=request.message)
+        
+        # Log the extracted context
+        logger.info(f"Extracted context: Industry={context_extraction.industry}, "
+                   f"Verticals={context_extraction.verticals}, "
+                   f"Problem={context_extraction.problem}")
+        
+        # Then, analyze the pitch with the extracted context
+        result = await analyze_pitch(
+            pitch_content=request.message,
+            context_extraction=context_extraction
         )
 
-        return FeedbackResponse(
-            feedback=result["response"],
-            conversation_id=result["conversation_id"]
+        # Return both the analysis results and the extracted context
+        return EnhancedFeedbackResponse(
+            clarity=result.clarity,
+            clarity_feedback=result.clarity_feedback,
+            content=result.content,
+            content_feedback=result.content_feedback,
+            structure=result.structure,
+            structure_feedback=result.structure_feedback,
+            delivery=result.delivery,
+            delivery_feedback=result.delivery_feedback,
+            feedback=result.feedback,
+            context=ContextExtractionResponse(
+                industry=context_extraction.industry,
+                verticals=context_extraction.verticals,
+                problem=context_extraction.problem,
+                summary=context_extraction.summary
+            )
         )
 
     except Exception as e:
@@ -238,4 +111,197 @@ async def analyze_transcript(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"An error occurred: {str(e)}"
-        ) 
+        )
+
+@video_router.post("/market-research", response_model=MarketResearchResponse)
+async def research_market(
+    request: ChatRequest,
+):
+    """
+    Conduct market research based on pitch context.
+    This endpoint expects a message containing the pitch context in JSON format:
+    {
+        "industry": "string",
+        "verticals": ["string"],
+        "problem": "string",
+        "summary": "string"
+    }
+    """
+    logger.info(f"Market research endpoint called with message: {request.message[:100]}...")
+    
+    try:
+        # Parse the context from the request message
+        try:
+            import json
+            context_data = json.loads(request.message)
+            
+            # Log parsed data
+            logger.info(f"Successfully parsed JSON context: {context_data}")
+            
+            # Create PitchContextExtraction object
+            context_extraction = PitchContextExtraction(
+                industry=context_data.get("industry", ""),
+                verticals=context_data.get("verticals", []),
+                problem=context_data.get("problem", ""),
+                summary=context_data.get("summary", "")
+            )
+        except json.JSONDecodeError as e:
+            # If not valid JSON, try to use it directly as an industry name
+            logger.warning(f"Received non-JSON input for market research: {e}")
+            context_extraction = PitchContextExtraction(
+                industry=request.message,
+                verticals=[],
+                problem="",
+                summary=""
+            )
+        
+        # Log the context
+        logger.info(f"Conducting market research for: Industry={context_extraction.industry}, "
+                   f"Verticals={context_extraction.verticals}")
+        
+        # Conduct market research using the agent
+        research_results = await conduct_market_research(context_extraction)
+        
+        # Add logging to help with debugging
+        logger.info(f"Research results type: {type(research_results).__name__}")
+        
+        # Convert to response schema - now handling dictionary access with get()
+        competitors = [
+            CompetitorResponse(
+                name=comp.get("name", ""),
+                description=comp.get("description", ""),
+                url=comp.get("url")
+            ) for comp in research_results.get("competitors", [])
+        ]
+        
+        market_size = MarketSizeResponse(
+            overall=research_results.get("market_size", {}).get("overall", "Unknown"),
+            growth=research_results.get("market_size", {}).get("growth"),
+            projection=research_results.get("market_size", {}).get("projection")
+        )
+        
+        trends = [
+            MarketTrendResponse(
+                title=trend.get("title", ""),
+                description=trend.get("description", "")
+            ) for trend in research_results.get("trends", [])
+        ]
+        
+        return MarketResearchResponse(
+            competitors=competitors,
+            market_size=market_size,
+            trends=trends,
+            summary=research_results.get("summary", "No summary available")
+        )
+
+    except Exception as e:
+        logger.error(f"Error in research_market: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"An error occurred: {str(e)}"
+        )
+
+@video_router.post("/pitch-deck-content")
+async def generate_deck_content(
+    request: ChatRequest,
+):
+    """
+    Generate content for pitch deck slides based on context from previous analyses.
+    This endpoint expects a message containing the pitch context in JSON format.
+    """
+    # CRITICAL DEBUG LOGGING - Log every request
+    logger.info(f"===== PITCH DECK CONTENT ENDPOINT CALLED =====")
+    logger.info(f"Request ID: {id(request)} - Time: {datetime.datetime.now().isoformat()}")
+    logger.info(f"Request headers available: {request.headers if hasattr(request, 'headers') else 'No headers'}")
+    
+    try:
+        # Parse the context from the request message
+        import json
+        logger.info(f"Request received: {request}")
+        logger.info(f"Request message preview (first 200 chars): {request.message[:200]}")
+        
+        try:
+            data = json.loads(request.message)
+            logger.info(f"Successfully parsed JSON with keys: {', '.join(data.keys())}")
+        except json.JSONDecodeError as je:
+            logger.error(f"JSON decode error: {str(je)}")
+            logger.error(f"Raw message: {request.message[:200]}...")
+            
+            # Return a more detailed error for debugging
+            return JSONResponse(
+                status_code=400,
+                content={"error": f"Invalid JSON format in message field: {str(je)}"}
+            )
+        
+        # Extract the necessary context components
+        context = data.get("context", {})
+        if not context:
+            logger.warning("No context found in request")
+            
+        logger.info(f"Context data: {context}")
+        
+        context_extraction = PitchContextExtraction(
+            industry=context.get("industry", ""),
+            verticals=context.get("verticals", []),
+            problem=context.get("problem", ""),
+            summary=context.get("summary", "")
+        )
+        logger.info(f"Created PitchContextExtraction with industry={context_extraction.industry}")
+        
+        # Get market research if available
+        market_research = data.get("market_research", None)
+        logger.info(f"Market research available: {market_research is not None}")
+        if market_research:
+            logger.info(f"Market research keys: {', '.join(market_research.keys()) if isinstance(market_research, dict) else 'not a dict'}")
+        
+        # Get pitch evaluation if available
+        pitch_evaluation_data = data.get("evaluation", None)
+        logger.info(f"Pitch evaluation available: {pitch_evaluation_data is not None}")
+        
+        pitch_evaluation = None
+        if pitch_evaluation_data:
+            pitch_evaluation = PitchEvaluation(
+                clarity=pitch_evaluation_data.get("clarity", 3),
+                clarity_feedback=pitch_evaluation_data.get("clarity_feedback", ""),
+                content=pitch_evaluation_data.get("content", 3),
+                content_feedback=pitch_evaluation_data.get("content_feedback", ""),
+                structure=pitch_evaluation_data.get("structure", 3),
+                structure_feedback=pitch_evaluation_data.get("structure_feedback", ""),
+                delivery=pitch_evaluation_data.get("delivery", 3),
+                delivery_feedback=pitch_evaluation_data.get("delivery_feedback", ""),
+                feedback=pitch_evaluation_data.get("feedback", "")
+            )
+            logger.info(f"Created PitchEvaluation with clarity={pitch_evaluation.clarity}, content={pitch_evaluation.content}")
+        
+        # Generate pitch deck content
+        logger.info("Calling generate_pitch_deck_content function")
+        
+        # Call the actual agent
+        pitch_deck_response = await generate_pitch_deck_content(
+            context_extraction=context_extraction,
+            market_research=market_research,
+            pitch_evaluation=pitch_evaluation
+        )
+        
+        # Convert the Pydantic model to a dictionary for the JSON response
+        logger.info(f"Generated pitch deck response - Overview length: {len(pitch_deck_response.overview)}")
+        logger.info(f"JSX code length: {len(pitch_deck_response.jsx_code)}")
+        
+        # Return the model as a JSON response
+        return JSONResponse(content=pitch_deck_response.dict())
+        
+    except Exception as e:
+        logger.error(f"Error in generate_deck_content: {str(e)}")
+        logger.exception("Full exception details:")
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"An error occurred: {str(e)}"}
+        )
+
+@video_router.get("/test-connection")
+async def test_connection():
+    """
+    Simple endpoint to test API connectivity
+    """
+    logger.info("Test connection endpoint called")
+    return {"status": "ok", "message": "API is working"} 

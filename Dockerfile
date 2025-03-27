@@ -12,14 +12,12 @@ WORKDIR /app
 # Copy requirements and install dependencies in one layer
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt \
-    && pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu \
     && rm -rf /root/.cache/pip/*
 
 # Copy the application code
 COPY main.py .
 COPY app ./app
-COPY media ./media
-COPY peachme.db ./peachme.db
+
 
 # Create necessary directories
 RUN mkdir -p media
@@ -27,5 +25,5 @@ RUN mkdir -p media
 # Expose the port
 EXPOSE 8001
 
-# Run the application with uvicorn
+# Run the application
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8001", "--reload"] 
