@@ -6,21 +6,15 @@ import os
 from pathlib import Path
 import datetime
 
-from app.schemas.schemas import (
-    ChatRequest, 
-    ChatResponse, 
-    TranscriptionResponse,
-    FeedbackResponse,
-    ContextExtractionResponse,
-    EnhancedFeedbackResponse,
-    MarketResearchResponse,
-    CompetitorResponse,
-    MarketSizeResponse,
-    MarketTrendResponse
-)
-from app.services.speech_to_text import get_transcript
-from app.core.agent_utils import analyze_pitch, extract_pitch_context, conduct_market_research, generate_pitch_deck_content, PitchContextExtraction, PitchEvaluation, PitchDeckResponse
 
+from app.services.speech_to_text import get_transcript
+from app.core.agent_utils import (
+    extract_pitch_context,
+    analyze_pitch,
+    conduct_market_research,
+    generate_pitch_deck_content
+)
+from app.schemas.schemas import PitchContext, PitchContextExtraction, PitchEvaluation, PitchDeckContent, JSXPitchDeckOutput, PitchDeckResponse, TranscriptionResponse, EnhancedFeedbackResponse, MarketResearchResponse, CompetitorResponse, MarketSizeResponse, MarketTrendResponse, ContextExtractionResponse, ChatRequest
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
